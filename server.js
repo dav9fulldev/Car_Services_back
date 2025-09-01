@@ -2,8 +2,13 @@ require('dotenv').config();
 const express = require('express');
 const nodemailer = require('nodemailer');
 const cors = require('cors');
+const morgan = require('morgan');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
+
+// ✅ Logger toutes les requêtes
+app.use(morgan('combined'));
 
 // ✅ Autoriser uniquement ton frontend
 app.use(cors({
@@ -11,6 +16,15 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
+// ✅ Limiter les requêtes pour protéger contre le spam
+const contactLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // max 5 requêtes par IP
+  message: { message: 'Trop de demandes envoyées, veuillez réessayer plus tard.' }
+});
+
+app.use('/api/contact', contactLimiter);
 
 app.post('/api/contact', async (req, res) => {
   const { name, email, message, whatsapp } = req.body;
@@ -20,11 +34,10 @@ app.post('/api/contact', async (req, res) => {
       service: 'gmail',
       auth: {
         user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS, // Mot de passe d'application Gmail
+        pass: process.env.EMAIL_PASS, // App Password Gmail
       },
     });
 
-    // ✅ Mise en forme du numéro WhatsApp
     const formattedNumber = whatsapp
       ? whatsapp.replace(/(\d{2})(?=\d)/g, '$1 ').trim()
       : 'Non renseigné';
@@ -50,7 +63,7 @@ app.post('/api/contact', async (req, res) => {
   }
 });
 
-// ✅ Port dynamique (Heroku, Render, Railway, etc.)
+// ✅ Port dynamique
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Serveur démarré sur http://localhost:${PORT}`);
